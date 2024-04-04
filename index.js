@@ -1,37 +1,34 @@
 const express = require('express');
 const app = express();
+const cors = require('cors');
+app.use(express.json());
+const db = require("./models");
+const usersRouter = require("./routes/usersRouter");
 
-const mysql = require('mysql');
-let connection = mysql.createConnection({
-    host:'localhost',
-    user:'root',
-    password:null,
-    database:'bakalauras',
+const allowedOrigin = 'http://localhost:3000';
+app.use(cors({
+  origin: allowedOrigin,
+  credentials: true,
+}));
+
+const { Sequelize } = require('sequelize');
+const config = require("./config/config.json");
+const sequelize = new Sequelize(config.development);
+
+db.sequelize.sync().then(() => {
+    console.log('Tables created successfully!');
+ }).catch((error) => {
+    console.error('Unable to create tables : ', error);
+ });
+
+app.use('/api/v1/users', usersRouter);
+app.use('/', (req, res) => {
+    res.json({"message":"your API works !"});
 });
 
-connection.connect(function(err) {
-    if(err){
-        console.log(err.code);
-        console.log(err.fatal);
-    }
+
+const PORT = process.env.PORT || 5000;
+console.log('Creating port');
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
-
-$query = "Select * FROM test";
-
-
-// connection.end(function(){
-//     console.log("Connection ended");
-// })
-
-
-app.get("/api", (req, res) => {
-    connection.query($query, function(err, rows) {
-        if(err){
-            console.log("An error occured with the query");
-            return;
-        }
-        res.json({"data" : rows});
-    });
-})
-
-app.listen(5000,() => {console.log("Server started on port 5000")});

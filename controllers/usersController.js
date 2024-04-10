@@ -49,7 +49,7 @@ exports.login = catchAsync(async (req, res, next) => {
     {
         return res.status(404).send();
     }
-    if(user.user_types_fk != 2 && user.user_types_fk != 3)
+    if(user.user_types_fk != 1 && user.user_types_fk != 2 && user.user_types_fk != 3)
     {
         return res.status(401).send();
     }
@@ -100,7 +100,8 @@ exports.login = catchAsync(async (req, res, next) => {
                 accessToken: accessToken,
                 refreshToken: refreshToken,
                 role: user.user_types_fk,
-                id: user.id
+                id: user.id,
+                pharmacy: user.adresses_fk
             });
         }
         else

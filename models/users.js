@@ -46,7 +46,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
     },
     username: DataTypes.STRING,
-    password: DataTypes.STRING,
+    password: DataTypes.TEXT,
     email: DataTypes.STRING,
     status: DataTypes.STRING,
     ForceRelogin: DataTypes.BOOLEAN,

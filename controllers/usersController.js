@@ -1,8 +1,9 @@
-const {users, Tokens} = require("../models");
+const {users, blacklist} = require("../models");
 const bcrypt = require('bcrypt');
 const catchAsync = require("../utils/catchAsync");
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
+const auth = require('./authenticationController');
 
 exports.addUser = catchAsync(async (req, res, next) => {
     const body = req.body;
@@ -18,11 +19,11 @@ exports.addUser = catchAsync(async (req, res, next) => {
                 username: body.username,
                 password: pswd,
                 email: body.email,
-                isDeleted: body.isDeleted,
                 status: body.status,
                 ForceRelogin: body.ForceRelogin,
                 createdAt: Date.now(),
-                updatedAt: Date.now()
+                updatedAt: Date.now(),
+                user_types_fk: body.user_types_fk
             })
             res.status(200).json({
                 user: newUser,
@@ -48,7 +49,7 @@ exports.login = catchAsync(async (req, res, next) => {
     {
         return res.status(404).send();
     }
-    if(user.status != "employee" && user.status != "admin")
+    if(user.user_types_fk != 2 && user.user_types_fk != 3)
     {
         return res.status(401).send();
     }
@@ -71,7 +72,7 @@ exports.login = catchAsync(async (req, res, next) => {
             currentTime1.setMinutes(currentTime1.getMinutes() + 15);
             const userPayload1 = {
                 sub: user.id,
-                role: user.status,
+                role: user.user_types_fk,
                 created: new Date(),
                 expire: currentTime1,
             };
@@ -80,7 +81,7 @@ exports.login = catchAsync(async (req, res, next) => {
             currentTime2.setDate(currentTime2.getDate() + 1);
             const userPayload2 = {
                 sub: user.id,
-                role: user.status,
+                role: user.user_types_fk,
                 created: new Date(),
                 expire: currentTime2,
             };
@@ -98,7 +99,7 @@ exports.login = catchAsync(async (req, res, next) => {
             res.status(200).json({
                 accessToken: accessToken,
                 refreshToken: refreshToken,
-                role: user.status,
+                role: user.user_types_fk,
                 id: user.id
             });
         }
@@ -115,4 +116,107 @@ exports.login = catchAsync(async (req, res, next) => {
             err: err,
         });
     }
+});
+
+exports.logout = catchAsync(async (req, res, next) => {
+    const header = req.headers['authorization'];
+    const token = header && header.split(' ')[1];
+    if (token == null) {
+        return res.sendStatus(401);
+    }
+
+    const existingToken = await blacklist.findOne({ where: { refresh_token: token}});
+
+    if(existingToken !== null) return res.status(403).message("token is blacklisted").send();
+
+    auth.authenticateRefreshToken(req, res, next);
+
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+    const user = req.user;
+
+    if(user.role != 'checkout' && user.role != 'employee' && user.role != 'admin' || Date.now() >= new Date(user.expire)) res.status(401);
+    
+    let result = await blacklist.create({
+        refresh_token:token,
+        createdAt:Date.now(),
+        updatedAt:Date.now(),
+    });
+
+    const existingUser = await users.findOne({ where: {id: user.sub}});
+    if(!existingUser) return res.status(403).message("user doesn't exist").send();
+
+    let updatedUser = await users.update({
+        username: existingUser.username,
+        password: existingUser.password,
+        email: existingUser.email,
+        status: existingUser.status,
+        ForceRelogin: true, // forces user to relog
+        updatedAt: Date.now()
+    }, { where: {id :  existingUser.id}})
+
+    const updateUser = await users.findOne({ where: {id :  existingUser.id}});
+
+    return res.status(200).json({
+        user: updateUser.username,
+        ForceRelogin: updateUser.ForceRelogin,
+    });
+    
+});
+
+exports.renewTokens = catchAsync(async (req, res, next) => {
+    const header = req.headers['authorization'];
+    const token = header && header.split(' ')[1];
+    if (token == null) {
+        return res.sendStatus(401).send();
+    }
+
+    const existingToken = await blacklist.findOne({ where: { refresh_token: token}});
+    if(existingToken  != null){
+        return res.status(403).json({ message: 'token is blacklisted' }).send();
+    }
+    auth.authenticateRefreshToken(req, res, next);
+
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"}).send();
+    const user = req.user;
+    if(user.role !== 1 && user.role !== 2 && user.role !== 3 || Date.now() >= new Date(user.expire)){
+        return res.status(401).send();
+    }
+
+    var currentTime1 = new Date();
+    currentTime1.setMinutes(currentTime1.getMinutes() + 1);
+    const userPayload1 = {
+        sub: user.sub,
+        role: user.role,
+        created: new Date(),
+        expire: currentTime1,
+    };
+
+    var currentTime2 = new Date();
+    currentTime2.setDate(currentTime2.getDate() + 1);
+    const userPayload2 = {
+        sub: user.sub,
+        role: user.role,
+        created: new Date(),
+        expire: currentTime2,
+    };
+
+    const accessToken = jwt.sign(
+        userPayload1,
+        process.env.ACCESS_TOKEN_SECRET,
+        {expiresIn: '15m'});
+
+    const refreshToken = jwt.sign(
+        userPayload2,
+        process.env.REFRESH_TOKEN_SECRET,
+        {expiresIn: '1d'});
+
+    let result = await blacklist.create({
+        refresh_token:token,
+        createdAt:Date.now(),
+        updatedAt:Date.now(),
+    });
+    return res.status(200).json({
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+    });
 });

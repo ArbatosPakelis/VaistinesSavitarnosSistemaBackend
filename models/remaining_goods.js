@@ -2,32 +2,25 @@
 const {
   Model
 } = require('sequelize');
-const user_types = require('./user_types');
-const confirmations = require('./confirmations');
 const adresses = require('./adresses');
-const orders = require('./orders');
+const order_products = require('./order_products');
+const product_cards = require('./product_cards');
 module.exports = (sequelize, DataTypes) => {
-  class users extends Model {
+  class remaining_goods extends Model {
     /**
      * Helper method for defining associations.
      * This method is not a part of Sequelize lifecycle.
      * The `models/index` file will call this method automatically.
      */
     static associate(db) {
-      this.hasMany(db.confirmations, { 
-        foreignKey: 'users_fk',
-        onDelete: 'SET NULL',
+      this.hasMany(db.order_products, { 
+        foreignKey: 'remaining_goods_fk',
+        onDelete: 'NO ACTION',
         onUpdate: 'CASCADE', 
         hooks: true
       });
-      this.hasMany(db.orders, {
-        foreignKey: 'users_fk',
-        onDelete: 'SET NULL',
-        onUpdate: 'CASCADE', 
-        hooks: true
-      });
-      this.belongsTo(db.user_types, { 
-        foreignKey: 'user_types_fk',
+      this.belongsTo(db.product_cards, { 
+        foreignKey: 'product_cards_fk',
         onDelete: 'RESTRICT',
         onUpdate: 'CASCADE'
       });
@@ -38,25 +31,21 @@ module.exports = (sequelize, DataTypes) => {
       });
     }
   }
-  users.init({
+  remaining_goods.init({
     id: {
       allowNull: false,
       autoIncrement: true,
       primaryKey: true,
       type: DataTypes.INTEGER,
     },
-    username: DataTypes.STRING,
-    password: DataTypes.STRING,
-    email: DataTypes.STRING,
-    status: DataTypes.STRING,
-    ForceRelogin: DataTypes.BOOLEAN,
-    createdAt: DataTypes.DATE,
-    updatedAt: DataTypes.DATE,
-    user_types_fk: DataTypes.INTEGER,
+    amount: DataTypes.INTEGER,
+    price: DataTypes.DECIMAL,
+    shortage_point: DataTypes.INTEGER,
+    product_cards_fk: DataTypes.INTEGER,
     adresses_fk: DataTypes.INTEGER
   }, {
     sequelize,
-    modelName: 'users',
+    modelName: 'remaining_goods',
   });
-  return users;
+  return remaining_goods;
 };

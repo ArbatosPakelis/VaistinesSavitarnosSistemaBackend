@@ -2,27 +2,25 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('users', {
+    await queryInterface.createTable('remaining_goods', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      username: {
-        type: Sequelize.STRING
+      amount: {
+        allowNull: false,
+        type: Sequelize.INTEGER,
+        defaultValue: 0
       },
-      password: {
-        type: Sequelize.STRING
+      price: {
+        allowNull: false,
+        type: Sequelize.DECIMAL(10,2)
       },
-      email: {
-        type: Sequelize.STRING
-      },
-      status: {
-        type: Sequelize.STRING
-      },
-      ForceRelogin: {
-        type: Sequelize.BOOLEAN
+      shortage_point: {
+        type: Sequelize.INTEGER,
+        defaultValue: 0
       },
       createdAt: {
         allowNull: false,
@@ -34,11 +32,11 @@ module.exports = {
         type: Sequelize.DATE,
         defaultValue: DataTypes.NOW
       },
-      user_types_fk: {
+      product_cards_fk: {
         type: Sequelize.DataTypes.INTEGER,
         references: {
           model: {
-            tableName: 'user_types'
+            tableName: 'product_cards'
           },
           key: 'id'
         },
@@ -46,11 +44,11 @@ module.exports = {
         onDelete: 'RESTRICT',
         onUpdate: 'CASCADE'
       },
-      adresses_fk: {
+      addresses_fk: {
         type: Sequelize.DataTypes.INTEGER,
         references: {
           model: {
-            tableName: 'adresses'
+            tableName: 'addresses'
           },
           key: 'id'
         },
@@ -60,6 +58,6 @@ module.exports = {
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('users');
+    await queryInterface.dropTable('remaining_goods');
   }
 };

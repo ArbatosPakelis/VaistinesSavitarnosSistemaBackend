@@ -2,33 +2,40 @@
 const {
   Model
 } = require('sequelize');
-const user_types = require('./user_types');
-const confirmations = require('./confirmations');
+const users = require('./users');
 const adresses = require('./adresses');
-const orders = require('./orders');
+const prescriptions = require('./prescriptions');
+const confirmations = require('./confirmations');
+const order_products = require('./order_products');
 module.exports = (sequelize, DataTypes) => {
-  class users extends Model {
+  class orders extends Model {
     /**
      * Helper method for defining associations.
      * This method is not a part of Sequelize lifecycle.
      * The `models/index` file will call this method automatically.
      */
     static associate(db) {
-      this.hasMany(db.confirmations, { 
-        foreignKey: 'users_fk',
-        onDelete: 'SET NULL',
+      this.hasMany(db.prescriptions, { 
+        foreignKey: 'orders_fk',
+        onDelete: 'CASCADE',
         onUpdate: 'CASCADE', 
         hooks: true
       });
-      this.hasMany(db.orders, {
-        foreignKey: 'users_fk',
-        onDelete: 'SET NULL',
-        onUpdate: 'CASCADE', 
-        hooks: true
-      });
-      this.belongsTo(db.user_types, { 
-        foreignKey: 'user_types_fk',
+      this.hasMany(db.order_products, { 
+        foreignKey: 'orders_fk',
         onDelete: 'RESTRICT',
+        onUpdate: 'CASCADE', 
+        hooks: true
+      });
+      this.hasOne(db.confirmations, { 
+        foreignKey: 'orders_fk',
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE', 
+        hooks: true
+      });
+      this.belongsTo(db.users, { 
+        foreignKey: 'users_fk',
+        onDelete: 'SET NULL',
         onUpdate: 'CASCADE'
       });
       this.belongsTo(db.adresses, { 
@@ -38,25 +45,21 @@ module.exports = (sequelize, DataTypes) => {
       });
     }
   }
-  users.init({
+  orders.init({
     id: {
       allowNull: false,
       autoIncrement: true,
       primaryKey: true,
       type: DataTypes.INTEGER,
     },
-    username: DataTypes.STRING,
-    password: DataTypes.STRING,
-    email: DataTypes.STRING,
-    status: DataTypes.STRING,
-    ForceRelogin: DataTypes.BOOLEAN,
+    price: DataTypes.DECIMAL,
+    state: DataTypes.STRING,
     createdAt: DataTypes.DATE,
-    updatedAt: DataTypes.DATE,
-    user_types_fk: DataTypes.INTEGER,
+    users_fk: DataTypes.INTEGER,
     adresses_fk: DataTypes.INTEGER
   }, {
     sequelize,
-    modelName: 'users',
+    modelName: 'orders',
   });
-  return users;
+  return orders;
 };

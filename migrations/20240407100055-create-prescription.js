@@ -2,27 +2,16 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('users', {
+    await queryInterface.createTable('prescriptions', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      username: {
+      medicine_name: {
+        allowNull: false,
         type: Sequelize.STRING
-      },
-      password: {
-        type: Sequelize.STRING
-      },
-      email: {
-        type: Sequelize.STRING
-      },
-      status: {
-        type: Sequelize.STRING
-      },
-      ForceRelogin: {
-        type: Sequelize.BOOLEAN
       },
       createdAt: {
         allowNull: false,
@@ -34,32 +23,20 @@ module.exports = {
         type: Sequelize.DATE,
         defaultValue: DataTypes.NOW
       },
-      user_types_fk: {
+      orders_fk: {
         type: Sequelize.DataTypes.INTEGER,
         references: {
           model: {
-            tableName: 'user_types'
+            tableName: 'orders'
           },
           key: 'id'
         },
-        allowNull: false,
-        onDelete: 'RESTRICT',
-        onUpdate: 'CASCADE'
-      },
-      adresses_fk: {
-        type: Sequelize.DataTypes.INTEGER,
-        references: {
-          model: {
-            tableName: 'adresses'
-          },
-          key: 'id'
-        },
-        onDelete: 'RESTRICT',
+        onDelete: 'CASCADE',
         onUpdate: 'CASCADE'
       }
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('users');
+    await queryInterface.dropTable('prescriptions');
   }
 };

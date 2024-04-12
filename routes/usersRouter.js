@@ -7,4 +7,5 @@ router.post('/register', usersController.addUser);
 router.post('/login', usersController.login);
 router.post('/logout', usersController.logout); 
 router.post('/tokens', usersController.renewTokens);
+router.get('/getAllAccounts', usersController.getAllAccounts);
 module.exports = router;

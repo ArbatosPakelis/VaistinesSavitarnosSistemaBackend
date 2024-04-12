@@ -52,7 +52,7 @@ module.exports = (sequelize, DataTypes) => {
       primaryKey: true,
       type: DataTypes.INTEGER,
     },
-    price: DataTypes.DECIMAL,
+    price: DataTypes.DECIMAL(10,2),
     state: DataTypes.STRING,
     createdAt: DataTypes.DATE,
     users_fk: DataTypes.INTEGER,

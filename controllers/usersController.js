@@ -101,7 +101,8 @@ exports.login = catchAsync(async (req, res, next) => {
                 refreshToken: refreshToken,
                 role: user.user_types_fk,
                 id: user.id,
-                pharmacy: user.adresses_fk
+                pharmacy: user.adresses_fk,
+                basketId:1
             });
         }
         else
@@ -220,4 +221,33 @@ exports.renewTokens = catchAsync(async (req, res, next) => {
         accessToken: accessToken,
         refreshToken: refreshToken,
     });
+});
+
+exports.getAllAccounts = catchAsync(async (req, res, next) => {
+    auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT === undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 3 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const {id} = req.params;
+    const usersList = await users.findAll();
+    if (!usersList || Array.isArray(usersList) && usersList.length < 1)
+    {
+        res.status(404).json({
+            "message":"no accounts were found"
+        }).send();
+    }
+
+    res.status(200).json({
+        users:usersList
+    }).send();
 });

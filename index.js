@@ -4,6 +4,7 @@ const cors = require('cors');
 app.use(express.json());
 const db = require("./models");
 const usersRouter = require("./routes/usersRouter");
+const orderRouter = require("./routes/ordersRouter");
 
 const allowedOrigin = 'http://localhost:3000';
 app.use(cors({
@@ -22,6 +23,7 @@ db.sequelize.sync().then(() => {
  });
 
 app.use('/api/v1/users', usersRouter);
+app.use('/api/v1/orders', orderRouter);
 app.use('/', (req, res) => {
     res.json({"message":"your API works !"});
 });

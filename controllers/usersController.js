@@ -73,6 +73,7 @@ exports.login = catchAsync(async (req, res, next) => {
             const userPayload1 = {
                 sub: user.id,
                 role: user.user_types_fk,
+                location: user.adresses_fk,
                 created: new Date(),
                 expire: currentTime1,
             };

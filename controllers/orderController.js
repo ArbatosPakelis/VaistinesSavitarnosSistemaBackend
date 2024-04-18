@@ -7,7 +7,7 @@ const axios = require("axios");
 
 
 exports.getOrder = catchAsync(async (req, res, next) => {
-    auth.authenticateAccessToken(req, res, next);
+    const authResult = await auth.authenticateAccessToken(req, res, next);
     if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
 
     const userT = req.user;
@@ -48,17 +48,26 @@ exports.getOrder = catchAsync(async (req, res, next) => {
         const hold = await product_cards.findOne({ where: {id:product.product_cards_fk}})
         cards.push(hold);
     };
+
+    const checkoutList = await users.findAll({ where: { user_types_fk: 1, adresses_fk: userT.location}});
+    if (!checkoutList || Array.isArray(checkoutList) && checkoutList.length < 1)
+    {
+        res.status(404).json({
+            "message":"this location doesn't have any checkouts added yet"
+        }).send();
+    }
   
     res.status(200).json({
-      order: order,
-      order_products: products,
-      product_cards: cards
+        checkouts:checkoutList,
+        order: order,
+        order_products: products,
+        product_cards: cards
     });
 });
 
 
 exports.getAllOrders = catchAsync(async (req, res, next) => {
-    auth.authenticateAccessToken(req, res, next);
+    const authResult = await auth.authenticateAccessToken(req, res, next);
     if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
 
     const userT = req.user;
@@ -95,7 +104,7 @@ exports.getAllOrders = catchAsync(async (req, res, next) => {
 });
 
 exports.getProductList = catchAsync(async (req, res, next) => {
-    auth.authenticateAccessToken(req, res, next);
+    const authResult = await auth.authenticateAccessToken(req, res, next);
     if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
 
     const userT = req.user;
@@ -127,7 +136,7 @@ exports.getProductList = catchAsync(async (req, res, next) => {
 
 exports.calibrate = catchAsync(async (req, res, next) => {
     const {id} = req.params;
-    auth.authenticateAccessToken(req, res, next);
+    const authResult = await auth.authenticateAccessToken(req, res, next);
     if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
 
     const userT = req.user;

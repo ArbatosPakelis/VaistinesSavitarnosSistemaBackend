@@ -1,4 +1,4 @@
-const {users, blacklist} = require("../models");
+const {users, blacklist, user_types, adresses} = require("../models");
 const bcrypt = require('bcrypt');
 const catchAsync = require("../utils/catchAsync");
 const jwt = require('jsonwebtoken');
@@ -55,7 +55,8 @@ exports.login = catchAsync(async (req, res, next) => {
     }
     try
     {
-        const correct = bcrypt.compare(body.password, user.password);
+        const correct = await bcrypt.compare(body.password, user.password);
+
         if(correct)
         {
             let updatedUser = await users.update({
@@ -115,6 +116,7 @@ exports.login = catchAsync(async (req, res, next) => {
     }
     catch(err)
     {
+        console.error("Login error:", err);
         res.status(500).json({
             err: err,
         });
@@ -132,7 +134,7 @@ exports.logout = catchAsync(async (req, res, next) => {
 
     if(existingToken !== null) return res.status(403).message("token is blacklisted").send();
 
-    auth.authenticateRefreshToken(req, res, next);
+    const authResult = await auth.authenticateRefreshToken(req, res, next);
 
     if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
     const user = req.user;
@@ -177,7 +179,7 @@ exports.renewTokens = catchAsync(async (req, res, next) => {
     if(existingToken  != null){
         return res.status(403).json({ message: 'token is blacklisted' }).send();
     }
-    auth.authenticateRefreshToken(req, res, next);
+    const authResult = await auth.authenticateRefreshToken(req, res, next);
 
     if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"}).send();
     const user = req.user;
@@ -225,7 +227,7 @@ exports.renewTokens = catchAsync(async (req, res, next) => {
 });
 
 exports.getAllAccounts = catchAsync(async (req, res, next) => {
-    auth.authenticateAccessToken(req, res, next);
+    const authResult = await auth.authenticateAccessToken(req, res, next);
     if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
 
     const userT = req.user;
@@ -239,7 +241,6 @@ exports.getAllAccounts = catchAsync(async (req, res, next) => {
         return res.status(401).json({"message": "user invalid"}).send();
     }
 
-    const {id} = req.params;
     const usersList = await users.findAll();
     if (!usersList || Array.isArray(usersList) && usersList.length < 1)
     {
@@ -247,8 +248,25 @@ exports.getAllAccounts = catchAsync(async (req, res, next) => {
             "message":"no accounts were found"
         }).send();
     }
+    const userRolesList = await user_types.findAll();
+    if (!userRolesList || Array.isArray(userRolesList) && userRolesList.length < 1)
+    {
+        res.status(404).json({
+            "message":"no roles were found"
+        }).send();
+    }
+
+    const adressesList = await adresses.findAll();
+    if (!adressesList || Array.isArray(adressesList) && adressesList.length < 1)
+    {
+        res.status(404).json({
+            "message":"adresses weren't found"
+        }).send();
+    }
 
     res.status(200).json({
-        users:usersList
+        users:usersList,
+        adresses:adressesList,
+        types:userRolesList
     }).send();
 });

@@ -55,6 +55,7 @@ module.exports = (sequelize, DataTypes) => {
     price: DataTypes.DECIMAL(10,2),
     state: DataTypes.STRING,
     createdAt: DataTypes.DATE,
+    updatedAt: DataTypes.DATE,
     users_fk: DataTypes.INTEGER,
     adresses_fk: DataTypes.INTEGER
   }, {

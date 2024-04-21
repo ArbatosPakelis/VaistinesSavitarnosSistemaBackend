@@ -4,14 +4,15 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const auth = require('./authenticationController');
 const axios = require("axios");
-
+require('dotenv').config();
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 exports.getOrder = catchAsync(async (req, res, next) => {
     const authResult = await auth.authenticateAccessToken(req, res, next);
     if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
 
     const userT = req.user;
-    if(userT === undefined)
+    if(userT == undefined)
     {
         return res.status(401).json({"message": "token expired"}).send();
     }
@@ -49,7 +50,8 @@ exports.getOrder = catchAsync(async (req, res, next) => {
         cards.push(hold);
     };
 
-    const checkoutList = await users.findAll({ where: { user_types_fk: 1, adresses_fk: userT.location}});
+
+    const checkoutList = await users.findAll({ where: { user_types_fk: [1, 2], adresses_fk: userT.location}});
     if (!checkoutList || Array.isArray(checkoutList) && checkoutList.length < 1)
     {
         res.status(404).json({
@@ -100,7 +102,7 @@ exports.getAllOrders = catchAsync(async (req, res, next) => {
     res.status(200).json({
         orders:orderList,
         checkouts:checkoutList
-    }).send();
+    });
 });
 
 exports.getProductList = catchAsync(async (req, res, next) => {
@@ -131,7 +133,7 @@ exports.getProductList = catchAsync(async (req, res, next) => {
     res.status(200).json({
         remaining_goods:goods,
         product_cards:cards
-    }).send();
+    });
 });
 
 exports.calibrate = catchAsync(async (req, res, next) => {
@@ -212,5 +214,272 @@ exports.calibrate = catchAsync(async (req, res, next) => {
     }
     res.status(200).json({
         message: "operation successful"
+    });
+});
+
+exports.addProduct = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT === undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 1 && userT.role != 2 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const { id, basketId } = req.params;
+    let basketID = basketId;
+    
+    const good = await remaining_goods.findOne({ where: { id: id}});
+    if(!good)
+    {
+        return res.status(404).json({"message": "product not found"}).send();
+    }
+
+    if(basketId <= 0)
+    {
+        const order = await orders.create({
+            price: good.price,
+            state: "Naujas",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            users_fk:  userT.sub,
+            adresses_fk: userT.location
+        });
+        basketID = order.id;
+    }
+    else
+    {
+        const order = await orders.findOne({ where: { id: basketID}})
+        if(!order)
+        {
+            return res.status(404).json({"message": "order not found"}).send();
+        }
+        const updatedOrder = await orders.update({
+            price:parseFloat(order.price)+parseFloat(good.price)
+        }, { where: { id: basketID } });
+    }
+
+    const productCheck = await order_products.findOne({ where: { orders_fk: basketID, product_cards_fk: good.product_cards_fk}})
+    let product;
+    if(!productCheck){
+        const newProduct = await order_products.create({
+            amount: 1,
+            price: good.price,
+            discount: 0,
+            orders_fk: basketID,
+            product_cards_fk: good.product_cards_fk,
+            remaining_goods_fk: good.id
+        });
+        product = newProduct;
+    }
+    else
+    {
+        const updateProduct = await order_products.update({
+            amount: productCheck.amount+1,
+        }, { where: { id: productCheck.id}});
+        product = updateProduct;
+    }
+    const updateGood = await remaining_goods.update({
+        amount:good.amount-1
+    }, { where: { id: id}});
+
+
+    res.status(200).json({
+        basketId: basketID,
+        product: product
+    });
+});
+
+exports.deleteProduct = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT === undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 1 && userT.role != 2 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const { id } = req.params;
+
+    const product = await order_products.findOne({ where: { id: id}})
+    if(!product){
+        return res.status(404).json({"message": "order product not found"}).send();
+    }
+    
+    const good = await remaining_goods.findOne({ where: { id: product.remaining_goods_fk}});
+    if(!good)
+    {
+        return res.status(404).json({"message": "remaining goods not found"}).send();
+    }
+
+    const order = await orders.findOne({ where: { id: product.orders_fk}});
+    if(!order)
+    {
+        return res.status(404).json({"message": "order not found"}).send();
+    }
+
+    const updatedOrder = await orders.update({
+        price:parseFloat(order.price)-(parseFloat(product.price)*parseInt(product.amount))
+    }, { where: { id: order.id } });
+
+    const updatedGood = await remaining_goods.update({
+        amount:parseInt(good.amount)+parseInt(product.amount)
+    }, { where: { id: good.id } });
+
+    const deleteProduct = await order_products.destroy({ where: { id: product.id}})
+
+    res.status(200).json({
+        results: Boolean(deleteProduct)
+    });
+});
+
+exports.updateProductAmount = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT === undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 1 && userT.role != 2 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const { id, operation } = req.params;
+
+    const product = await order_products.findOne({ where: { id: id}})
+    if(!product){
+        return res.status(404).json({"message": "order product not found"}).send();
+    }
+
+    const goods = await remaining_goods.findOne({ where: { id: product.remaining_goods_fk}})
+    if(!goods){
+        return res.status(404).json({"message": "remaining goods not found"}).send();
+    }
+
+    const order = await orders.findOne({ where: { id: product.orders_fk}})
+    if(!order){
+        return res.status(404).json({"message": "order not found"}).send();
+    }
+
+    if(operation == 1 && parseInt(product.amount) > 1)
+    {
+        const updateProduct = await order_products.update({
+            amount: parseInt(product.amount)-1,
+        }, { where: { id: id}});
+
+        const updateGood = await remaining_goods.update({
+            amount: parseInt(goods.amount)+1,
+        }, { where: { id: goods.id}});
+
+        const updateOrder = await orders.update({
+            price: parseFloat(order.price)-parseFloat(product.price),
+        }, { where: { id: order.id}});
+
+        res.status(200).json({
+            message:"successful subtraction"
+        });
+    }
+    else if(operation == 2 && parseInt(goods.amount) > 0)
+    {
+        const updateProduct = await order_products.update({
+            amount: parseInt(product.amount)+1,
+        }, { where: { id: id}});
+
+        const updateGood = await remaining_goods.update({
+            amount: parseInt(goods.amount)-1,
+        }, { where: { id: goods.id}});
+
+        const updateOrder = await orders.update({
+            price: parseFloat(order.price)+parseFloat(product.price),
+        }, { where: { id: order.id}});
+
+        res.status(200).json({
+            message:"successful addition"
+        });
+    }
+    else
+    {
+        res.status(403).json({
+            message:"can't do this operation"
+        });
+    }
+});
+
+exports.payment = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT == undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 1 && userT.role != 2 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const {id} =  req.params;
+
+    const products = await order_products.findAll({ where: {orders_fk:id}})
+    
+    const productCardPairs = [];
+
+    for (const product of products) {
+        const hold = await product_cards.findOne({ where: { id: product.product_cards_fk } });
+        productCardPairs.push({
+            product: product,
+            card: hold
+        });
+    }
+    try {
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            mode: 'payment',
+            line_items: productCardPairs.map(item => {
+                return {
+                    price_data: {
+                        currency: 'eur',
+                        product_data: {
+                            name: item.card.name,
+                        },
+                        unit_amount: parseInt(parseFloat(item.product.price)*100)
+                    },
+                    quantity: item.product.amount,
+                }
+            }),
+            success_url:`${process.env.FRONTEND_URL}basket?success=true`,
+            cancel_url:`${process.env.FRONTEND_URL}basket?success=false`
+        });
+        res.status(200).json({
+            session: session.url
+        });
+    }
+    catch(e) {
+        res.status(500).json({ error: e.message});
+    }
+});
+
+
+exports.paymentCompletion = catchAsync(async (req, res, next) => {
+    res.status(200).json({
+        message:"success"
     });
 });

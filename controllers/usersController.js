@@ -76,7 +76,7 @@ exports.login = catchAsync(async (req, res, next) => {
                 role: user.user_types_fk,
                 location: user.adresses_fk,
                 created: new Date(),
-                expire: currentTime1,
+                expire: currentTime1
             };
 
             var currentTime2 = new Date();
@@ -84,6 +84,7 @@ exports.login = catchAsync(async (req, res, next) => {
             const userPayload2 = {
                 sub: user.id,
                 role: user.user_types_fk,
+                location: user.adresses_fk,
                 created: new Date(),
                 expire: currentTime2,
             };
@@ -104,7 +105,7 @@ exports.login = catchAsync(async (req, res, next) => {
                 role: user.user_types_fk,
                 id: user.id,
                 pharmacy: user.adresses_fk,
-                basketId:1
+                basketId:0
             });
         }
         else
@@ -183,6 +184,7 @@ exports.renewTokens = catchAsync(async (req, res, next) => {
 
     if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"}).send();
     const user = req.user;
+
     if(user.role !== 1 && user.role !== 2 && user.role !== 3 || Date.now() >= new Date(user.expire)){
         return res.status(401).send();
     }
@@ -192,6 +194,7 @@ exports.renewTokens = catchAsync(async (req, res, next) => {
     const userPayload1 = {
         sub: user.sub,
         role: user.role,
+        location: user.location,
         created: new Date(),
         expire: currentTime1,
     };
@@ -201,6 +204,7 @@ exports.renewTokens = catchAsync(async (req, res, next) => {
     const userPayload2 = {
         sub: user.sub,
         role: user.role,
+        location: user.location,
         created: new Date(),
         expire: currentTime2,
     };

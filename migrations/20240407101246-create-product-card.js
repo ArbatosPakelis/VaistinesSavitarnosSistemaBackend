@@ -32,6 +32,10 @@ module.exports = {
         allowNull: false,
         type: Sequelize.INTEGER
       },
+      prescription: {
+        defaultValue:false,
+        type: DataTypes.BOOLEAN
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE,

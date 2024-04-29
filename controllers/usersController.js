@@ -105,7 +105,9 @@ exports.login = catchAsync(async (req, res, next) => {
                 role: user.user_types_fk,
                 id: user.id,
                 pharmacy: user.adresses_fk,
-                basketId:0
+                basketId:0,
+                SelfCode:"",
+                OtherCode:""
             });
         }
         else
@@ -190,7 +192,7 @@ exports.renewTokens = catchAsync(async (req, res, next) => {
     }
 
     var currentTime1 = new Date();
-    currentTime1.setMinutes(currentTime1.getMinutes() + 1);
+    currentTime1.setMinutes(currentTime1.getMinutes() + 15);
     const userPayload1 = {
         sub: user.sub,
         role: user.role,
@@ -272,5 +274,95 @@ exports.getAllAccounts = catchAsync(async (req, res, next) => {
         users:usersList,
         adresses:adressesList,
         types:userRolesList
-    }).send();
+    });
+});
+
+exports.getAccountSettings = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT === undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 3 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const roles = await user_types.findAll();
+    if (!roles)
+    {
+        return res.status(404).json({
+            "message":"no roles were found"
+        }).send();
+    }
+
+    const adress = await adresses.findAll();
+    if (!adress)
+    {
+        return res.status(404).json({
+            "message":"no adresses were found"
+        }).send();
+    }
+
+    res.status(200).json({
+        roles: roles,
+        adresses: adress
+    });
+});
+
+exports.updateAccount = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT === undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 3 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const { user } = req.body;
+    console.log(user);
+    const adress = user.adresses_fk == 'null' ? null : user.adresses_fk
+
+    const updateUser = await users.update({
+        user_types_fk: user.user_types_fk,
+        adresses_fk: adress
+    },{ where: { id: user.id}})
+
+    res.status(200).json({
+        message:"success"
+    });
+});
+
+exports.deleteAccount = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT === undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 3 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const {id} = req.params;
+
+    const updateUser = await users.destroy({ where: { id: id}})
+
+    res.status(200).json({
+        message:"success"
+    });
 });

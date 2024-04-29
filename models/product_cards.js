@@ -38,7 +38,11 @@ module.exports = (sequelize, DataTypes) => {
     dosage_form: DataTypes.STRING,
     product_type: DataTypes.STRING,
     packaging: DataTypes.STRING,
-    minimal_age: DataTypes.INTEGER
+    minimal_age: DataTypes.INTEGER,
+    prescription: {
+      defaultValue:false,
+      type: DataTypes.BOOLEAN
+    }
   }, {
     sequelize,
     modelName: 'product_cards',

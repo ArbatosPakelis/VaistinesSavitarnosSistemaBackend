@@ -84,7 +84,7 @@ exports.getAllOrders = catchAsync(async (req, res, next) => {
 
     const {id} = req.params;
     const orderList = await orders.findAll({ where: { adresses_fk: id}});
-    const checkoutList = await users.findAll({ where: { user_types_fk: 1, adresses_fk: id}});
+    const checkoutList = await users.findAll({ where: { user_types_fk: [1, 2], adresses_fk: id}});
     if (!orderList || Array.isArray(orderList) && orderList.length < 1)
     {
         return res.status(404).json({
@@ -179,6 +179,7 @@ exports.calibrate = catchAsync(async (req, res, next) => {
                 product_type: cards[index].product_type,
                 packaging: cards[index].packaging,
                 minimal_age: cards[index].minimal_age,
+                prescription: cards[index].prescription,
             })
             hold = newCard;
         }
@@ -209,11 +210,21 @@ exports.calibrate = catchAsync(async (req, res, next) => {
                         adresses_fk: id
                     })
                 }
+                else
+                {
+                    const newGood = await remaining_goods.update({
+                        amount: goodElement.amount,
+                        price: goodElement.price,
+                    }, { where: { id: duplicate2.id}})
+                }
             }
         };
     }
     res.status(200).json({
-        message: "operation successful"
+        message: "operation successful",
+        cards:cards,
+        goods:goods,
+        response:response.data
     });
 });
 
@@ -241,10 +252,50 @@ exports.addProduct = catchAsync(async (req, res, next) => {
         return res.status(404).json({"message": "product not found"}).send();
     }
 
+    const discountCheck = await order_products.findAll({ where: { orders_fk: basketID}})
+    let diskCheck = false;
+    for (const product of discountCheck) {
+        if(product.discount > 0){
+            diskCheck = true;
+        }
+    }
+
+    const productCheck = await order_products.findOne({ where: { orders_fk: basketID, product_cards_fk: good.product_cards_fk}})
+    let finalDiscount = 0;
+    if(diskCheck == true)
+    {
+        const card = await product_cards.findOne({ where: { id: good.product_cards_fk}})
+        const wrap = {
+            product: productCheck
+        };
+
+        try{
+            const response = await axios.post(
+                `http://localhost:5001/api/v1/getDiscount/${card.name}`
+            );
+
+            const data = response.data;
+            finalDiscount = data.discount;
+        }
+        catch(err){
+            return res.status(500).json({
+                message:"failled to reach discount api"
+            });
+        }
+    }
+
     if(basketId <= 0)
     {
+        let discountedPrice;
+        if (finalDiscount === 0) {
+            // No discount, so just use the original price
+            discountedPrice = good.price;
+        } else {
+            // Calculate the discounted price and round up always with two decimal places
+            discountedPrice = Math.ceil(good.price * (100 - finalDiscount) / 100 * 100) / 100;
+        }
         const order = await orders.create({
-            price: good.price,
+            price: discountedPrice,
             state: "Naujas",
             createdAt: Date.now(),
             updatedAt: Date.now(),
@@ -261,17 +312,16 @@ exports.addProduct = catchAsync(async (req, res, next) => {
             return res.status(404).json({"message": "order not found"}).send();
         }
         const updatedOrder = await orders.update({
-            price:parseFloat(order.price)+parseFloat(good.price)
+            price:parseFloat(order.price)+Math.ceil(parseFloat(good.price*(parseFloat(parseInt(100-finalDiscount)/100)))*100)/100
         }, { where: { id: basketID } });
     }
 
-    const productCheck = await order_products.findOne({ where: { orders_fk: basketID, product_cards_fk: good.product_cards_fk}})
     let product;
     if(!productCheck){
         const newProduct = await order_products.create({
             amount: 1,
             price: good.price,
-            discount: 0,
+            discount: finalDiscount,
             orders_fk: basketID,
             product_cards_fk: good.product_cards_fk,
             remaining_goods_fk: good.id
@@ -282,12 +332,17 @@ exports.addProduct = catchAsync(async (req, res, next) => {
     {
         const updateProduct = await order_products.update({
             amount: productCheck.amount+1,
+            discount: finalDiscount
         }, { where: { id: productCheck.id}});
         product = updateProduct;
     }
     const updateGood = await remaining_goods.update({
-        amount:good.amount-1
+        amount:parseInt(good.amount)-parseInt(1)
     }, { where: { id: id}});
+
+    const updateOrder = await orders.update({
+        state: "Naujas",
+    }, { where: { id: basketID}});
 
 
     res.status(200).json({
@@ -331,7 +386,7 @@ exports.deleteProduct = catchAsync(async (req, res, next) => {
     }
 
     const updatedOrder = await orders.update({
-        price:parseFloat(order.price)-(parseFloat(product.price)*parseInt(product.amount))
+        price:parseFloat(order.price)-(Math.ceil(parseFloat(product.price*(parseFloat(parseInt(100-product.discount)/100)))*100)/100*parseInt(product.amount))
     }, { where: { id: order.id } });
 
     const updatedGood = await remaining_goods.update({
@@ -388,7 +443,7 @@ exports.updateProductAmount = catchAsync(async (req, res, next) => {
         }, { where: { id: goods.id}});
 
         const updateOrder = await orders.update({
-            price: parseFloat(order.price)-parseFloat(product.price),
+            price: parseFloat(order.price)-Math.ceil(parseFloat(product.price*(parseFloat(parseInt(100-product.discount)/100)))*100)/100,
         }, { where: { id: order.id}});
 
         res.status(200).json({
@@ -406,7 +461,7 @@ exports.updateProductAmount = catchAsync(async (req, res, next) => {
         }, { where: { id: goods.id}});
 
         const updateOrder = await orders.update({
-            price: parseFloat(order.price)+parseFloat(product.price),
+            price: parseFloat(order.price)+Math.ceil(parseFloat(product.price*(parseFloat(parseInt(100-product.discount)/100)))*100)/100,
         }, { where: { id: order.id}});
 
         res.status(200).json({
@@ -479,7 +534,597 @@ exports.payment = catchAsync(async (req, res, next) => {
 
 
 exports.paymentCompletion = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT == undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 1 && userT.role != 2 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const {id, success} =  req.params;
+
+    const order = await orders.findAll({ where: {id:id}})
+
+    if(!order){
+        res.status(404).json({
+            "message":"order not found"
+        }).send();
+    }
+
+    const products = await order_products.findAll({ where: {orders_fk:id}})
+    
+    const productCardPairs = [];
+
+    for (const product of products) {
+        const hold = await product_cards.findOne({ where: { id: product.product_cards_fk } });
+        productCardPairs.push({
+            product: product,
+            card: hold
+        });
+    }
+
+    const data = productCardPairs.map(item => {
+        return {
+            name: item.card.name,
+            amount: item.product.amount
+        }
+    })
+
+    const requestData = {
+        Order: data 
+    };
+
+    if(success == "true")
+    {
+        const response = await axios.post(
+            `http://localhost:5001/api/v1/postOrder`,
+            requestData
+        );
+    
+        if(response.status != 200)
+        {
+            console.log(response.status)
+            res.status(403).json({
+                message:"order frozen"
+            });
+        }
+        else
+        {
+            const updateOrder = await orders.update({
+                state: "Įvykdytas",
+            }, { where: { id: id}});
+
+            res.status(200).json({
+                message:"success",
+                state:"Įvykdytas"
+            });
+        }
+    }
+    else if(success == "false")
+    {
+        for (const product of products) {
+            const hold = await remaining_goods.findOne({ where: { id: product.remaining_goods_fk } });
+
+            const updateGoods = await remaining_goods.update({
+                amount: parseInt(hold.amount)+parseInt(product.amount),
+            }, { where: { id: hold.id}});
+
+            const deleteProduct = await order_products.destroy({ where: { id: product.id}});
+        }
+
+        const updateOrder = await orders.update({
+            state: "Atšauktas",
+        }, { where: { id: id}});
+
+        res.status(200).json({
+            message:"success",
+            state:"Atšauktas"
+        });
+    }
+
     res.status(200).json({
         message:"success"
     });
+    
+});
+
+exports.utilityOrder = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT == undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 1 && userT.role != 2 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const {id} =  req.params;
+
+    const order = await orders.findAll({ where: {id:id}})
+
+    if(!order){
+        res.status(404).json({
+            "message":"order not found"
+        }).send();
+    }
+
+    const updateOrder = await orders.update({
+        state: "Avarinis",
+    }, { where: { id: id}});
+
+    const products = await order_products.findAll({ where: {orders_fk:id}})
+    
+    const productCardPairs = [];
+
+    for (const product of products) {
+        const hold = await product_cards.findOne({ where: { id: product.product_cards_fk } });
+        productCardPairs.push({
+            product: product,
+            card: hold
+        });
+    }
+
+    const data = productCardPairs.map(item => {
+        return {
+            name: item.card.name,
+            amount: item.product.amount
+        }
+    })
+
+    const requestData = {
+        Order: data 
+    };
+
+    const response = await axios.post(
+        `http://localhost:5001/api/v1/postOrder`,
+        requestData
+    );
+
+    if(response.status != 200)
+    {
+        console.log(response.status)
+        res.status(403).json({
+            message:"order frozen"
+        });
+    }
+    else{
+        const updateOrder = await orders.update({
+            state: "Įvykdytas",
+        }, { where: { id: id}});
+
+        res.status(200).json({
+            message:"success",
+            state:"Įvykdytas"
+        });
+    }
+
+});
+
+exports.checkValidity = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT == undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 1 && userT.role != 2 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const {id} =  req.params;
+
+    const order = await orders.findOne({ where: {id:id}})
+
+    if(!order){
+        res.status(404).json({
+            "message":"order not found"
+        }).send();
+    }
+
+    const products = await order_products.findAll({ where: {orders_fk:id}})
+    if(!products){
+        res.status(404).json({
+            "message":"order products not found"
+        }).send();
+    }
+
+    let check = true;
+    let age = true;
+    for (const product of products) {
+        const card = await product_cards.findOne({ where: { id: product.product_cards_fk } });
+        if(parseInt(card.minimal_age) >= 18 && order.state != "Patvirtintas"){
+            age = false;
+        }
+        if(Boolean(card.prescription) == true){
+            const prescription = await prescriptions.findOne({ where: { medicine_name: card.name, orders_fk: id} });
+            if(!prescription)
+            {
+                check=false;
+            }
+        }
+    }
+
+    res.status(200).json({
+        validity:check,
+        age: age
+    }).send();
+});
+
+
+exports.calcelOrder = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT == undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 1 && userT.role != 2 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const {id} =  req.params;
+
+    const order = await orders.findAll({ where: {id:id}});
+
+    if(!order){
+        res.status(404).json({
+            "message":"order not found"
+        }).send();
+    }
+
+    const products = await order_products.findAll({ where: {orders_fk:id}})
+    if(!products){
+        res.status(404).json({
+            "message":"order products not found"
+        }).send();
+    }
+
+    for (const product of products) {
+        const hold = await remaining_goods.findOne({ where: { id: product.remaining_goods_fk } });
+
+        const updateGoods = await remaining_goods.update({
+            amount: parseInt(hold.amount)+parseInt(product.amount),
+        }, { where: { id: hold.id}});
+
+        const deleteProduct = await order_products.destroy({ where: { id: product.id}});
+    }
+
+    const updateOrder = await orders.update({
+        state: "Atšauktas",
+    }, { where: { id: id}});
+
+    res.status(200).json({
+        "message":"success"
+    }).send();
+});
+
+exports.applyDiscounts = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT == undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 1 && userT.role != 2 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const {id} =  req.params;
+
+    const products = await order_products.findAll({ where: {orders_fk:id}})
+    
+    const productCardPairs = [];
+
+    for (const product of products) {
+        if(product.discount < 1)
+        {
+            const hold = await product_cards.findOne({ where: { id: product.product_cards_fk } });
+            productCardPairs.push({
+                product: product,
+                card: hold
+            });
+        }
+    }
+
+    const requestData = {
+        Order: productCardPairs 
+    };
+
+    try{
+        const response = await axios.post(
+            `http://localhost:5001/api/v1/getDiscountList`,
+            requestData
+        );
+        let newPrice = 0;
+        const data = response.data?.discounts;
+        for (const row of data) {
+            const hold = await order_products.update({
+                discount:row.discount
+            },{ where: { id: row.product.id } });
+            newPrice = newPrice + row.product.amount* Math.ceil(parseFloat(row.product.price*(parseFloat(parseInt(100-row.discount)/100)))*100)/100;
+        }
+
+        const hold = await orders.update({
+            price: newPrice
+        },{ where: { id: id } });
+
+    }
+    catch(err){
+        return res.status(500).json({
+            message:"failled to reach discount api"
+        });
+    }
+
+    res.status(200).json({
+        message:"success"
+    });
+});
+
+exports.updateOrder = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT == undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 1 && userT.role != 2 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const {id, state} =  req.params;
+
+    const order = await orders.findOne({ where: { id: id } });
+    if(!order)
+    {
+        return res.status(404).json({
+            message:"Order not found"
+        });
+    }
+
+    const hold = await orders.update({
+        state: state
+    },{ where: { id: id } });
+
+    if(!hold)
+    {
+        return res.status(500).json({
+            message:"Order update failled"
+        });
+    }
+    else{
+        return res.status(200).json({
+            message:"success"
+        });
+    }
+});
+
+
+exports.addPrescriptions = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT == undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 1 && userT.role != 2 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const {id} =  req.params;
+    const {SelfCode, OtherCode} =  req.body;
+
+    const order = await orders.findOne({ where: { id: id } });
+    if(!order)
+    {
+        return res.status(404).json({
+            message:"Order not found"
+        });
+    }
+
+    const products = await order_products.findAll({ where: {orders_fk:id}})
+    
+    const productCardPairs = [];
+
+    for (const product of products) {
+        const hold = await product_cards.findOne({ where: { id: product.product_cards_fk } });
+        if(Boolean(hold.prescription) == true){
+            productCardPairs.push({
+                product: product,
+                card: hold
+            });
+        }
+    }
+
+
+    const data = productCardPairs.map(item => {
+        return {
+            name: item.card.name
+        }
+    })
+
+    const requestData = {
+        selfCode:SelfCode,
+        otherCode: OtherCode,
+        Names: data 
+    };
+
+    let missingPrescription = false;
+    for (const row of requestData.Names){
+        const prescription = await prescriptions.findOne({
+            where: { medicine_name: row.name, orders_fk: id}
+        });
+        if(!prescription)
+        {
+            missingPrescription = true;
+        }
+    }
+
+    if(missingPrescription == true)
+    {
+        try{
+            const response = await axios.post(
+                `http://localhost:5001/api/v1/getPrescription`,
+                requestData
+            );
+
+            if(response.status == 200){
+                const names = response.data.prescriptions
+                console.log(names);
+                for (const name of names){
+                    const prescription = await prescriptions.findOne({
+                        where: { medicine_name: name.name, orders_fk: id}
+                    });
+                    if(!prescription)
+                    {
+                        const createPrescription = await prescriptions.create({
+                            medicine_name: name.name,
+                            orders_fk: id,
+                        });
+                    }
+                }
+
+                res.status(200).json({
+                    message: "success"
+                });
+            }
+        }
+        catch(err){
+            console.log(err);
+            res.status(500).json({
+                message: err.message
+            });
+        }
+    }
+    else
+    {
+        res.status(200).json({
+            message: "success"
+        });
+    }
+});
+
+exports.updateLimit = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT == undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 1 && userT.role != 2 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const {id, limit} =  req.params;
+
+    const good = await remaining_goods.findOne({ where: { id: id } });
+    if(!good)
+    {
+        return res.status(404).json({
+            message:"the product was not found"
+        });
+    }
+
+    const hold = await remaining_goods.update({
+        shortage_point: limit
+    },{ where: { id: id } });
+
+    if(!hold)
+    {
+        return res.status(500).json({
+            message:"Product update failed"
+        });
+    }
+    else{
+        return res.status(200).json({
+            message:"success"
+        });
+    }
+});
+
+
+exports.resupply = catchAsync(async (req, res, next) => {
+    const authResult = await auth.authenticateAccessToken(req, res, next);
+    if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
+
+    const userT = req.user;
+    if(userT == undefined)
+    {
+        return res.status(401).json({"message": "token expired"}).send();
+    }
+    if(userT.role != 1 && userT.role != 2 ||
+      Date.now() >= new Date(userT.expire))
+    {
+        return res.status(401).json({"message": "user invalid"}).send();
+    }
+
+    const { list } = req.body
+    const productCardPairs = [];
+    for (const row of list) {
+        const product = await order_products.findOne({ where: {id:row.id}})
+        const card = await product_cards.findOne({ where: { id: product.product_cards_fk } });
+        productCardPairs.push({
+            name: card.name,
+            amount: row.amount
+        });
+    }
+
+    const requestData = {
+        status:"success",
+        list:productCardPairs
+    }
+
+    try{
+        const response = await axios.post(
+            `http://localhost:5001/api/v1/resupply`,
+            requestData
+        );
+
+        if(response.status == 200)
+        {
+            res.status(200).json({
+                message: "success"
+            });
+        }
+    }
+    catch(err){
+        res.status(500).json({
+            message: err.message
+        });
+    }
 });

@@ -10,7 +10,9 @@
   },
   "jest": {
     "coverageDirectory": "coverage",
-    "collectCoverageFrom": ["controllers/*.js"]
+    "collectCoverageFrom": [
+      "controllers/*.js"
+    ]
   },
   "repository": {
     "type": "git",
@@ -34,12 +36,12 @@
     "mysql": "^2.18.1",
     "mysql2": "^3.9.3",
     "path": "^0.12.7",
+    "sequelize": "^6.37.3",
     "stripe": "^15.3.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
     "nodemon": "^3.1.0",
-    "sequelize": "^6.37.2",
     "sequelize-cli": "^6.6.2",
     "supertest": "^6.3.4"
   }

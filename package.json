@@ -4,9 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "jest",
+    "test": "jest --coverage",
     "start": "node server",
     "dev": "nodemon server"
+  },
+  "jest": {
+    "coverageDirectory": "coverage",
+    "collectCoverageFrom": ["controllers/*.js"]
   },
   "repository": {
     "type": "git",

@@ -119,7 +119,6 @@ exports.login = catchAsync(async (req, res, next) => {
     }
     catch(err)
     {
-        console.error("Login error:", err);
         res.status(500).json({
             err: err,
         });
@@ -330,7 +329,7 @@ exports.updateAccount = catchAsync(async (req, res, next) => {
     }
 
     const { user } = req.body;
-    console.log(user);
+
     const adress = user.adresses_fk == 'null' ? null : user.adresses_fk
 
     const updateUser = await users.update({

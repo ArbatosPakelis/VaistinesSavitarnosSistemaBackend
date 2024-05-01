@@ -11,13 +11,14 @@
     "password": null,
     "database": "bakalaurastest",
     "host": "localhost",
-    "dialect": "mysql"
+    "dialect": "mysql",
+    "logging": false
   },
   "production": {
-    "username": "root",
-    "password": null,
-    "database": "database_production",
-    "host": "127.0.0.1",
+    "username": "b82074bca909f2",
+    "password": "99fac3a2",
+    "database": "heroku_fac2a0b49bddf18",
+    "host": "eu-cluster-west-01.k8s.cleardb.net",
     "dialect": "mysql"
   }
 }

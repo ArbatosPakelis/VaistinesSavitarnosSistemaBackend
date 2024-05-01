@@ -590,7 +590,7 @@ exports.paymentCompletion = catchAsync(async (req, res, next) => {
     
         if(response.status != 200)
         {
-            console.log(response.status)
+
             res.status(403).json({
                 message:"order frozen"
             });
@@ -694,7 +694,6 @@ exports.utilityOrder = catchAsync(async (req, res, next) => {
 
     if(response.status != 200)
     {
-        console.log(response.status)
         res.status(403).json({
             message:"order frozen"
         });
@@ -765,7 +764,6 @@ exports.checkValidity = catchAsync(async (req, res, next) => {
         age: age
     }).send();
 });
-
 
 exports.calcelOrder = catchAsync(async (req, res, next) => {
     const authResult = await auth.authenticateAccessToken(req, res, next);
@@ -926,7 +924,6 @@ exports.updateOrder = catchAsync(async (req, res, next) => {
     }
 });
 
-
 exports.addPrescriptions = catchAsync(async (req, res, next) => {
     const authResult = await auth.authenticateAccessToken(req, res, next);
     if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
@@ -1001,7 +998,6 @@ exports.addPrescriptions = catchAsync(async (req, res, next) => {
 
             if(response.status == 200){
                 const names = response.data.prescriptions
-                console.log(names);
                 for (const name of names){
                     const prescription = await prescriptions.findOne({
                         where: { medicine_name: name.name, orders_fk: id}
@@ -1021,7 +1017,6 @@ exports.addPrescriptions = catchAsync(async (req, res, next) => {
             }
         }
         catch(err){
-            console.log(err);
             res.status(500).json({
                 message: err.message
             });
@@ -1077,7 +1072,6 @@ exports.updateLimit = catchAsync(async (req, res, next) => {
     }
 });
 
-
 exports.resupply = catchAsync(async (req, res, next) => {
     const authResult = await auth.authenticateAccessToken(req, res, next);
     if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
@@ -1093,7 +1087,7 @@ exports.resupply = catchAsync(async (req, res, next) => {
         return res.status(401).json({"message": "user invalid"}).send();
     }
 
-    const { list } = req.body
+    const { list } = req.body;
     const productCardPairs = [];
     for (const row of list) {
         const product = await order_products.findOne({ where: {id:row.id}})

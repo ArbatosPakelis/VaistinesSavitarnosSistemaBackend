@@ -155,7 +155,7 @@ exports.calibrate = catchAsync(async (req, res, next) => {
     }
 
     const response = await axios.get(
-        `http://localhost:5001/api/v1/getContent`
+        `${process.env.MOCK_URL}/api/v1/getContent`
     );
     const cards = response.data.product_cards;
     const goods = response.data.remaining_goods;
@@ -271,7 +271,7 @@ exports.addProduct = catchAsync(async (req, res, next) => {
 
         try{
             const response = await axios.post(
-                `http://localhost:5001/api/v1/getDiscount/${card.name}`
+                `${process.env.MOCK_URL}/api/v1/getDiscount/${card.name}`
             );
 
             const data = response.data;
@@ -584,7 +584,7 @@ exports.paymentCompletion = catchAsync(async (req, res, next) => {
     if(success == "true")
     {
         const response = await axios.post(
-            `http://localhost:5001/api/v1/postOrder`,
+            `${process.env.MOCK_URL}/api/v1/postOrder`,
             requestData
         );
     
@@ -688,7 +688,7 @@ exports.utilityOrder = catchAsync(async (req, res, next) => {
     };
 
     const response = await axios.post(
-        `http://localhost:5001/api/v1/postOrder`,
+        `${process.env.MOCK_URL}/api/v1/postOrder`,
         requestData
     );
 
@@ -854,7 +854,7 @@ exports.applyDiscounts = catchAsync(async (req, res, next) => {
 
     try{
         const response = await axios.post(
-            `http://localhost:5001/api/v1/getDiscountList`,
+            `${process.env.MOCK_URL}/api/v1/getDiscountList`,
             requestData
         );
         let newPrice = 0;
@@ -992,7 +992,7 @@ exports.addPrescriptions = catchAsync(async (req, res, next) => {
     {
         try{
             const response = await axios.post(
-                `http://localhost:5001/api/v1/getPrescription`,
+                `${process.env.MOCK_URL}/api/v1/getPrescription`,
                 requestData
             );
 
@@ -1105,7 +1105,7 @@ exports.resupply = catchAsync(async (req, res, next) => {
 
     try{
         const response = await axios.post(
-            `http://localhost:5001/api/v1/resupply`,
+            `${process.env.MOCK_URL}/api/v1/resupply`,
             requestData
         );
 

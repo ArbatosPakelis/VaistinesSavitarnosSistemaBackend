@@ -520,8 +520,8 @@ exports.payment = catchAsync(async (req, res, next) => {
                     quantity: item.product.amount,
                 }
             }),
-            success_url:`${process.env.FRONTEND_URL}basket?success=true`,
-            cancel_url:`${process.env.FRONTEND_URL}basket?success=false`
+            success_url:`${process.env.FRONTEND_URL}/basket?success=true`,
+            cancel_url:`${process.env.FRONTEND_URL}/basket?success=false`
         });
         res.status(200).json({
             session: session.url

@@ -22,7 +22,7 @@ module.exports = (sequelize, DataTypes) => {
       users_fk: DataTypes.INTEGER,
       orders_fk: DataTypes.INTEGER
     },
-    refresh_token: DataTypes.STRING,
+    refresh_token: DataTypes.TEXT,
     createdAt: DataTypes.DATE
   }, {
     sequelize,

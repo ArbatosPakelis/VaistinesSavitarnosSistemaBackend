@@ -5,7 +5,7 @@ app.use(express.json());
 const usersRouter = require("./routes/usersRouter");
 const orderRouter = require("./routes/ordersRouter");
 const allowedOrigin = 'https://auto-pharma-frontend-ce37c0f84f86.herokuapp.com';
-
+// const allowedOrigin = 'http://localhost:3000';
 app.use(cors({
     origin: allowedOrigin,
     credentials: true,

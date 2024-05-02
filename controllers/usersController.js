@@ -143,30 +143,39 @@ exports.logout = catchAsync(async (req, res, next) => {
 
     if(user.role != 'checkout' && user.role != 'employee' && user.role != 'admin' || Date.now() >= new Date(user.expire)) res.status(401);
     
-    let result = await blacklist.create({
-        refresh_token:token,
-        createdAt:Date.now(),
-        updatedAt:Date.now(),
-    });
+    try{
+        let result = await blacklist.create({
+            refresh_token:token,
+            createdAt:Date.now(),
+            updatedAt:Date.now(),
+        });
 
-    const existingUser = await users.findOne({ where: {id: user.sub}});
-    if(!existingUser) return res.status(403).message("user doesn't exist").send();
+        const existingUser = await users.findOne({ where: {id: user.sub}});
+        if(!existingUser) return res.status(403).message("user doesn't exist").send();
 
-    let updatedUser = await users.update({
-        username: existingUser.username,
-        password: existingUser.password,
-        email: existingUser.email,
-        status: existingUser.status,
-        ForceRelogin: true, // forces user to relog
-        updatedAt: Date.now()
-    }, { where: {id :  existingUser.id}})
+        let updatedUser = await users.update({
+            username: existingUser.username,
+            password: existingUser.password,
+            email: existingUser.email,
+            status: existingUser.status,
+            ForceRelogin: true, // forces user to relog
+            updatedAt: Date.now()
+        }, { where: {id :  existingUser.id}})
 
-    const updateUser = await users.findOne({ where: {id :  existingUser.id}});
+        const updateUser = await users.findOne({ where: {id :  existingUser.id}});
 
-    return res.status(200).json({
-        user: updateUser.username,
-        ForceRelogin: updateUser.ForceRelogin,
-    });
+        return res.status(200).json({
+            user: updateUser.username,
+            ForceRelogin: updateUser.ForceRelogin,
+        });
+    }
+    catch(err)
+    {
+        console.log(err)
+        return res.status(500).json({
+            error: err.message
+        });
+    }
     
 });
 

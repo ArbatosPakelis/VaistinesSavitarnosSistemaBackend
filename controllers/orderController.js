@@ -67,7 +67,6 @@ exports.getOrder = catchAsync(async (req, res, next) => {
     });
 });
 
-
 exports.getAllOrders = catchAsync(async (req, res, next) => {
     const authResult = await auth.authenticateAccessToken(req, res, next);
     if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
@@ -154,78 +153,86 @@ exports.calibrate = catchAsync(async (req, res, next) => {
         return res.status(401).json({"message": "user invalid"}).send();
     }
 
-    const response = await axios.get(
-        `${process.env.MOCK_URL}/api/v1/getContent`
-    );
-    const cards = response.data.product_cards;
-    const goods = response.data.remaining_goods;
-    if(!cards || !goods)
+    try
     {
-        res.status(404).json({
-            message: "data was not found"
-        });
-    }
-
-    for ( let index = 0; index < cards.length; index++) {
-        const duplicate1 = await product_cards.findOne({ where: { name: cards[index].name}})
-        // if element exist don't add it
-        let hold;
-        if(!duplicate1){
-
-            const newCard = await product_cards.create({
-                name: cards[index].name,
-                manufacturer: cards[index].manufacturer,
-                dosage_form: cards[index].dosage_form,
-                product_type: cards[index].product_type,
-                packaging: cards[index].packaging,
-                minimal_age: cards[index].minimal_age,
-                prescription: cards[index].prescription,
-            })
-            hold = newCard;
-        }
-        
-        // if goods match add goods
-        const medicine = duplicate1?.name || hold.name; // current medicine name
-        let medicineID;
-        cards.forEach(element => { // find current medicine id from json
-            if(element.name === medicine)
-            {
-                medicineID = element.id;
-            }
-        });
-
-        for( const goodElement of goods)
+        const response = await axios.get(
+            `${process.env.MOCK_URL}/api/v1/getContent`
+        );
+        const cards = response.data.product_cards;
+        const goods = response.data.remaining_goods;
+        if(!cards || !goods)
         {
-            if(medicineID && medicineID === goodElement.product_cards_fk) // find which remaining_good belongs to the card
-            {
-                const duplicate2 = await remaining_goods.findOne({ where: { product_cards_fk: duplicate1?.id || hold.id, adresses_fk: id}})
+            res.status(404).json({
+                message: "data was not found"
+            });
+        }
 
-                if(!duplicate2)
-                {
-                    const newGood = await remaining_goods.create({
-                        amount: goodElement.amount,
-                        price: goodElement.price,
-                        shortage_point:0,
-                        product_cards_fk: duplicate1?.id || hold.id,
-                        adresses_fk: id
-                    })
-                }
-                else
-                {
-                    const newGood = await remaining_goods.update({
-                        amount: goodElement.amount,
-                        price: goodElement.price,
-                    }, { where: { id: duplicate2.id}})
-                }
+        for ( let index = 0; index < cards.length; index++) {
+            const duplicate1 = await product_cards.findOne({ where: { name: cards[index].name}})
+            // if element exist don't add it
+            let hold;
+            if(!duplicate1){
+
+                const newCard = await product_cards.create({
+                    name: cards[index].name,
+                    manufacturer: cards[index].manufacturer,
+                    dosage_form: cards[index].dosage_form,
+                    product_type: cards[index].product_type,
+                    packaging: cards[index].packaging,
+                    minimal_age: cards[index].minimal_age,
+                    prescription: cards[index].prescription,
+                })
+                hold = newCard;
             }
-        };
+            
+            // if goods match add goods
+            const medicine = duplicate1?.name || hold.name; // current medicine name
+            let medicineID;
+            cards.forEach(element => { // find current medicine id from json
+                if(element.name === medicine)
+                {
+                    medicineID = element.id;
+                }
+            });
+
+            for( const goodElement of goods)
+            {
+                if(medicineID && medicineID === goodElement.product_cards_fk) // find which remaining_good belongs to the card
+                {
+                    const duplicate2 = await remaining_goods.findOne({ where: { product_cards_fk: duplicate1?.id || hold.id, adresses_fk: id}})
+
+                    if(!duplicate2)
+                    {
+                        const newGood = await remaining_goods.create({
+                            amount: goodElement.amount,
+                            price: goodElement.price,
+                            shortage_point:0,
+                            product_cards_fk: duplicate1?.id || hold.id,
+                            adresses_fk: id
+                        })
+                    }
+                    else
+                    {
+                        const newGood = await remaining_goods.update({
+                            amount: goodElement.amount,
+                            price: goodElement.price,
+                        }, { where: { id: duplicate2.id}})
+                    }
+                }
+            };
+        }
+        res.status(200).json({
+            message: "operation successful",
+            cards:cards,
+            goods:goods
+        });
     }
-    res.status(200).json({
-        message: "operation successful",
-        cards:cards,
-        goods:goods,
-        response:response.data
-    });
+    catch(err)
+    {
+        res.status(500).json({
+            message: "couldn't connect to the storage"
+        });
+    }
 });
 
 exports.addProduct = catchAsync(async (req, res, next) => {
@@ -532,7 +539,6 @@ exports.payment = catchAsync(async (req, res, next) => {
     }
 });
 
-
 exports.paymentCompletion = catchAsync(async (req, res, next) => {
     const authResult = await auth.authenticateAccessToken(req, res, next);
     if(req.error !== undefined) return res.status(req.error).json({"message": "token expired or invalid"});
@@ -644,7 +650,7 @@ exports.utilityOrder = catchAsync(async (req, res, next) => {
     {
         return res.status(401).json({"message": "token expired"}).send();
     }
-    if(userT.role != 1 && userT.role != 2 ||
+    if(userT.role != 2 ||
       Date.now() >= new Date(userT.expire))
     {
         return res.status(401).json({"message": "user invalid"}).send();
@@ -687,18 +693,13 @@ exports.utilityOrder = catchAsync(async (req, res, next) => {
         Order: data 
     };
 
-    const response = await axios.post(
-        `${process.env.MOCK_URL}/api/v1/postOrder`,
-        requestData
-    );
-
-    if(response.status != 200)
+    try 
     {
-        res.status(403).json({
-            message:"order frozen"
-        });
-    }
-    else{
+        const response = await axios.post(
+            `${process.env.MOCK_URL}/api/v1/postOrder`,
+            requestData
+        );
+
         const updateOrder = await orders.update({
             state: "Įvykdytas",
         }, { where: { id: id}});
@@ -708,6 +709,18 @@ exports.utilityOrder = catchAsync(async (req, res, next) => {
             state:"Įvykdytas"
         });
     }
+    catch(err)
+    {
+        const updateOrder = await orders.update({
+            state: "Atšauktas",
+        }, { where: { id: id}});
+
+        res.status(403).json({
+            message:"Įvyko problema bandant pasiekti saugyklą",
+            state:"Atšauktas"
+        });
+    }
+
 
 });
 
@@ -837,6 +850,7 @@ exports.applyDiscounts = catchAsync(async (req, res, next) => {
     
     const productCardPairs = [];
 
+    let discountExistance = false;
     for (const product of products) {
         if(product.discount < 1)
         {
@@ -846,7 +860,19 @@ exports.applyDiscounts = catchAsync(async (req, res, next) => {
                 card: hold
             });
         }
+        else
+        {
+            discountExistance = true;
+        }
     }
+
+    if(discountExistance == true)
+    {
+        return res.status(403).json({
+            message:"discounts already exist"
+        });
+    }
+
 
     const requestData = {
         Order: productCardPairs 
@@ -867,6 +893,7 @@ exports.applyDiscounts = catchAsync(async (req, res, next) => {
         }
 
         const hold = await orders.update({
+            state: "Atpigintas",
             price: newPrice
         },{ where: { id: id } });
 
@@ -891,7 +918,7 @@ exports.updateOrder = catchAsync(async (req, res, next) => {
     {
         return res.status(401).json({"message": "token expired"}).send();
     }
-    if(userT.role != 1 && userT.role != 2 ||
+    if(userT.role != 2 ||
       Date.now() >= new Date(userT.expire))
     {
         return res.status(401).json({"message": "user invalid"}).send();
@@ -1039,7 +1066,7 @@ exports.updateLimit = catchAsync(async (req, res, next) => {
     {
         return res.status(401).json({"message": "token expired"}).send();
     }
-    if(userT.role != 1 && userT.role != 2 ||
+    if(userT.role != 2 ||
       Date.now() >= new Date(userT.expire))
     {
         return res.status(401).json({"message": "user invalid"}).send();
@@ -1055,19 +1082,20 @@ exports.updateLimit = catchAsync(async (req, res, next) => {
         });
     }
 
-    const hold = await remaining_goods.update({
-        shortage_point: limit
-    },{ where: { id: id } });
+    try {
+        const hold = await remaining_goods.update({
+            shortage_point: limit
+        },{ where: { id: id } });
 
-    if(!hold)
-    {
-        return res.status(500).json({
-            message:"Product update failed"
-        });
-    }
-    else{
         return res.status(200).json({
             message:"success"
+        });
+    }
+    catch(err)
+    {
+
+        return res.status(500).json({
+            message:"Updating limit failled"
         });
     }
 });
@@ -1081,7 +1109,7 @@ exports.resupply = catchAsync(async (req, res, next) => {
     {
         return res.status(401).json({"message": "token expired"}).send();
     }
-    if(userT.role != 1 && userT.role != 2 ||
+    if(userT.role != 2 ||
       Date.now() >= new Date(userT.expire))
     {
         return res.status(401).json({"message": "user invalid"}).send();

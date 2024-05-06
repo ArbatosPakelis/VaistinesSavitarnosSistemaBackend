@@ -155,7 +155,7 @@ describe('PUT /updateProductAmount/:id/:operation working subtraction', () => {
         .set('Content-Type', 'application/json')
         .set('Authorization', 'bearer ' + auth.accessToken));
 
-        expect(res.statusCode).toBe(200 || 403);;
+        expect(res.statusCode).toBe(200 || 403);
     });
 });
 
@@ -165,7 +165,7 @@ describe('PUT /updateProductAmount/:id/:operation working addition', () => {
         .set('Content-Type', 'application/json')
         .set('Authorization', 'bearer ' + auth.accessToken));
 
-        expect(res.statusCode).toBe(200 || 403);;
+        expect(res.statusCode).toBe(200 || 403);
     });
 });
 
@@ -245,7 +245,7 @@ describe('POST /applyDiscounts/:id working', () => {
         .set('Content-Type', 'application/json')
         .set('Authorization', 'bearer ' + auth.accessToken));
 
-        expect(res.statusCode).toEqual(200);
+        expect(res.statusCode).toBe(403 || 200);
     });
 });
 
@@ -329,4 +329,12 @@ describe('POST /resupply working', () => {
     });
 });
 
-[ { id: 1, amount: 2 }, { id: 2, amount: 2 } ]
+describe('DELETE /deleteProduct/:id not found', () => {
+    it('should return an 404 code', async () => {
+        const res = (await request(app).delete('/api/v1/orders/deleteProduct/99999')
+        .set('Content-Type', 'application/json')
+        .set('Authorization', 'bearer ' + auth.accessToken));
+
+        expect(res.statusCode).toEqual(404);
+    });
+});

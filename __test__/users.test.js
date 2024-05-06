@@ -233,3 +233,14 @@ describe('PUT /updateAccount no token', () => {
         expect(res.statusCode).toEqual(401);
     });
 });
+
+describe('DELETE /deleteAccount/:id not found', () => {
+    it('should return an 404 code', async () => {
+        const auth = await getAdminLogin();
+        const res = (await request(app).delete('/api/v1/users/deleteAccount/99999')
+        .set('Content-Type', 'application/json')
+        .set('Authorization', 'bearer ' + auth.accessToken));
+
+        expect(res.statusCode).toEqual(404);
+    });
+});

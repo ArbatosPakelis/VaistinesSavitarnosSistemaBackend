@@ -1,4 +1,4 @@
-const {orders, order_products, product_cards, prescriptions, confirmations, remaining_goods, users} = require("../models");
+const {orders, order_products, product_cards, prescriptions, remaining_goods, users} = require("../models");
 const catchAsync = require("../utils/catchAsync");
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
@@ -1118,7 +1118,7 @@ exports.resupply = catchAsync(async (req, res, next) => {
     const { list } = req.body;
     const productCardPairs = [];
     for (const row of list) {
-        const product = await order_products.findOne({ where: {id:row.id}})
+        const product = await remaining_goods.findOne({ where: {id:row.id}})
         const card = await product_cards.findOne({ where: { id: product.product_cards_fk } });
         productCardPairs.push({
             name: card.name,
